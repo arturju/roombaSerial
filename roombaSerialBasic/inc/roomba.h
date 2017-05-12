@@ -12,17 +12,16 @@
 #define 	MIN_SPEED 	70 
 
 
+// variables for Roomba
 extern SoftwareSerial Roomba;
 
-int motorSpeed = 100;
+int ddPin = 5; //device detect
 
-char command = 0; // variable to store command received from IR or BT remote control
-char state = 0;
 
-int buttonPin = 12;
-int ledPin=13;
-int ddPin=5; //device detect
+// int buttonPin = 12;
+// int ledPin=13;
 
+//variables for LEDs
 bool debrisLED;
 bool spotLED;
 bool dockLED;
@@ -47,22 +46,18 @@ bool is_in_array(byte val);
 
 
 
+/** LED controls --------------------
+- available in Safe or Full Mode
+
+
+*/
+
 /*---------------------------------------------------------------
 Serial sequence: [139] [LED Bits] [Power Color] [Power Intensity]
 LED Bits:		
 Power Color: 	 0 = green, 255 = red
 Power Intensity: 0= off, 	255 = full intensity
 */
-void setWarningLED(bool enable)
-{
-  warningLED = enable;
-  Roomba.write(139);
-  Roomba.write((debrisLED ? 1 : 0) + (spotLED ? 2 : 0) + (dockLED ? 4 : 0) + (warningLED ? 8 : 0));
-  Roomba.write((byte)color);
-  Roomba.write((byte)intensity);
-}
-
-
 
 
 /*-----------------------------------------------------------------------------
@@ -71,7 +66,6 @@ void setWarningLED(bool enable)
  **---------------------------------------------------------------------------*/
 void wakeUp (void)
 {
-  setWarningLED(ON);
   digitalWrite(ddPin, HIGH);
   delay(100);
   digitalWrite(ddPin, LOW);
@@ -92,7 +86,19 @@ void startSafe()
   delay(1000);
 }
 
+
 /*-----------------------------------------------------------------------------
+ ** Function: 
+ ** Enters this mode after sending Start, Spot, Clean, or Seek Dock command. Can request and receive sensor data but can't change parameters. Goes into power saving mode after 5 mins of inactivity. 
+ **---------------------------------------------------------------------------*/
+void startPassive()
+{  
+  Roomba.write(128);  //Start OI
+  delay(1000);
+}
+
+
+/*----------------------------------------------------------------------------
  ** Function: 
  ** This command starts the default cleaning mode. Same as pressing Roomba's Clean button
  **---------------------------------------------------------------------------*/
@@ -114,15 +120,26 @@ void seekDock()
 
 
 /*-----------------------------------------------------
- This command Play song
- [140] [song #] [lenght] [note#] [note duration]
- [141] [song #]                                      */
+Song (pg 19)
+- Available in modes: Passive, Safe, or Full
+- Serial sequence: [140] [song #] [length] [note#] [note duration]
+- Song number is 0-4; if second song command is sent, the old one is overwritten
+- Song length 1-16; number of musical notes in the song
+- Song bytes, Note Number   31-127; everything else is a rest note
+- Song bytes, Note Duration 0-255 ; in incrementes of 1/64th of second. .5s = 32
+                              
+							  
+Play (pg20)
+- Available in modes: Safe or Full	
+- [141] [song #] 
+------------------------------------------------*/
 void playSound (int num) 
 {
   switch (num)
   { 
     case 1: 
-      Roomba.write("\x8c\x01\x04\x42\x20\x3e\x20\x42\x20\x3e\x20"); // [140] [1] [4] [68] [32] ... place "start sound" in slot 1
+		// [140] [1] [4] [68] [32] ... place "start sound" in slot 1
+      Roomba.write("\x8c\x01\x04\x42\x20\x3e\x20\x42\x20\x3e\x20"); 
       Roomba.write("\x8d\x01"); // [141] [1] play it (in slot 1)
       break;
  
@@ -137,9 +154,6 @@ void playSound (int num)
       break;
   }
 }
-
-
-
 
 
 
@@ -244,6 +258,23 @@ void writeLEDs (char a, char b, char c, char d)
   setDigitLEDFromASCII(3, c);
   setDigitLEDFromASCII(4, d);
 }
+
+
+
+/*-----------------------------------------------------
+Roomba Open Interface Sensor Packets
+- 58 sensor data packets. 
+
+-PacketID: 22: Voltage; 	dataBytes: 2,unsigned. range: 0 - 65535 mV
+-PacketID: 23: Current; 	dataBytes: 2   signed. range: -32768 to 32767 mA
+-PacketID: 24: Temperature; dataBytes: 1   signed. range: -128 to 127
+-PacketID: 25: BattCharge;  dataBytes: 2,unsigned. range: 0-65535 mAh
+-PacketID: 25: BattCapacty; dataBytes: 2,unsigned. range: 0-65535 mAh
+
+
+
+------------------------------------------------------*/
+
 
 
 
