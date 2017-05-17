@@ -18,10 +18,15 @@ Summary of Roomba Open Interface Spec:
 #include "inc/roomba.h"
 SoftwareSerial Roomba(10,11); //rxPin, txPin
 
-#define IDLING         1
-#define DOING_STUFF    2
-int roombaState = IDLING;
-int serialIn;
+#define ASLEEP    1
+#define AWAKE     2
+#define MOVING    3
+
+int roombaState = ASLEEP;
+int serialIn = 0;
+
+unsigned long int roombaIOtimeout = 240000; // 4 min
+unsigned long     roombaTimeMark  = 0;
   
 //---------------------------------------------
 void setup() 
@@ -31,6 +36,7 @@ void setup()
   pinMode(ddPin, OUTPUT);  //pin5
 
   Serial.println("Setup done");
+  roombaTimeMark = millis();
 }
 
 void loop() 
@@ -38,30 +44,49 @@ void loop()
 /* Add 86 from serial Input
  *  clean:  135 -> 49. Chr 1
  *  sDock:  143 -> 57. Chr 9
- *  startOI:128 -> 42. Chr * 
 */
-if (Serial.available()>0)    serialIn= Serial.read()+86;  
+if (Serial.available()>0)   serialIn= Serial.read()+86;  
 
 if(serialIn != 0){
   Serial.print("Cmd: "); Serial.println(serialIn);   
   
-  //If we're doing something, stop current cmd then issue new one
-  if (roombaState == DOING_STUFF){
-    cmdRoomba(CLEAN);   
-    delay(200);
-    cmdRoomba(serialIn);
-    roombaState = DOING_STUFF;
-  }else{
-    cmdRoomba(START_OI);  // must start OI again
-    delay(500);
-    cmdRoomba(serialIn);
-    roombaState = DOING_STUFF;
+  if      (roombaState == MOVING && (serialIn== 135 ||serialIn==143) ){
+    cmdRoomba(CLEAN);       //stop current cmd  first...
+  }
+  else if (roombaState == MOVING){
+    Serial.println("Uknown cmd while moving...");
+    cmdRoomba(CLEAN);       // stop moving
+    roombaState = AWAKE;
+  }
+  
+  else if (roombaState == AWAKE && (serialIn== 135 ||serialIn==143)){
+    roombaState = MOVING;
+  }
+  else if (roombaState == AWAKE){
+    Serial.println("Uknown command while awake...");
+  }
+  
+  else if (roombaState == ASLEEP && (serialIn== 135 ||serialIn==143)){
+    Serial.println("Waking up"); wakeUp();
+    roombaState = MOVING;
+  }
+  else if (roombaState == ASLEEP){
+    wakeUp();
+    Serial.println("Unkown cmd while asleep...");
+    roombaState = AWAKE;
   }
 
-  
+  delay(500);
+  cmdRoomba(serialIn);      // issue command received
+  roombaTimeMark= millis(); // reset timers
+
 }// End if(serialIn)
 
-// timeOut roombaState to IDLE. After 5 min OI stops
+
+// Update Timers:
+  if(IsTime(&roombaTimeMark, roombaIOtimeout)) {
+    Serial.println("Roomba went to sleep!");  roombaState=ASLEEP;
+  }
 
 serialIn = 0; 
 }

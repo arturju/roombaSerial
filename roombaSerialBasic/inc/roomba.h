@@ -10,6 +10,23 @@ extern SoftwareSerial Roomba;
 int ddPin = 5; //device detect
 
 
+
+/*-----------------------------------------------------------------------------
+ ** Function: IsTime()
+ **
+ ** Arguments:
+ ** *timeMark   : pointer to value of timeMark variable. Gets compared with millis()
+ ** timeInterval: time that must elapse before function returns true
+ **---------------------------------------------------------------------------*/
+boolean IsTime(unsigned long *timeMark, unsigned long timeInterval) {
+    if (millis() - *timeMark >= timeInterval) {
+        *timeMark = millis();
+        return true;
+    }
+    return false;
+}
+
+
 /*-----------------------------------------------------------------------------
  ** Function: 
  ** Wakes up the robot
@@ -21,7 +38,7 @@ void wakeUp (void)
   digitalWrite(ddPin, LOW);
   delay(500);
   digitalWrite(ddPin, HIGH);
-  delay(2000);
+  delay(1000);
 }
 
 void cmdRoomba(int command){
