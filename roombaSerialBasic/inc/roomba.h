@@ -42,21 +42,8 @@ void wakeUp (void)
 }
 
 void cmdRoomba(int command){
-	/*
-	if(command != START_OI){
-		Roomba.write(START_OI);
-		delay(1000);
-		Roomba.write(command);
-	}else{
-		Roomba.write(START_OI);
-	}
-	*/
 	Roomba.write(command);
-	
-	
-	
 	delay(1000);
-	
 }
 
 
