@@ -48,7 +48,7 @@ int   ledState = 0;
 //---------------------------------------------
 void setup() 
 {
-  Roomba.begin(115200); // changed to 115200
+  Roomba.begin(19200); // changed to 115200
   Serial.begin(19200);
   pinMode(ddPin, OUTPUT);  //pin5
   pinMode(RED_LED, OUTPUT);   // led
