@@ -4,10 +4,36 @@
 /*-----------------------------------------------------------------------------
  ** Global Defines/Typedefs/Enums/Macros.
  **---------------------------------------------------------------------------*/
+#define ASLEEP    1
+#define CLEANING  2
+#define DOCKING   3
+ 
+#define START_OI  128
+#define RESET_OI  7
+#define STOP_OI   173
+#define BAUD      129
+#define SAFE_MODE 131
+#define FULL_MODE 132
+#define CLEAN     135
+#define SEEK_DOCK 143
+ 
+ 
 extern SoftwareSerial Roomba;
 
+typedef struct miniDin7 {
+	int pin1Vpwr;
+	int pin2Vpwr;
+	int pin3Rxd;
+	int pin4Txd;
+	int pin5Brc;
+	int pin6Gnd;
+	int pin7Gnd;
+}din7Connector;
 
-int ddPin = 5; //device detect
+typedef struct roombaInfo {
+	int roombaState;
+	void (*roombaUpdateFunc)(int* , din7Connector, int);	
+}roombaObj;
 
 
 
@@ -27,17 +53,18 @@ boolean IsTime(unsigned long *timeMark, unsigned long timeInterval) {
 }
 
 
+
 /*-----------------------------------------------------------------------------
  ** Function: 
- ** Wakes up the robot
+ ** wake up and general cmd functions including wait-time
  **---------------------------------------------------------------------------*/
-void wakeUp (void)
+void wakeUp (din7Connector miniDin)
 {
-  digitalWrite(ddPin, HIGH);
+  digitalWrite(miniDin.pin5Brc, HIGH);
   delay(100);
-  digitalWrite(ddPin, LOW);
+  digitalWrite(miniDin.pin5Brc, LOW);
   delay(500);
-  digitalWrite(ddPin, HIGH);
+  digitalWrite(miniDin.pin5Brc, HIGH);
   delay(1000);
 }
 
@@ -46,31 +73,48 @@ void cmdRoomba(int command){
 	delay(1000);
 }
 
-
+/*-----------------------------------------------------------------------------
+ ** Function: 
+ ** Updates roomba states if currently in sleep mode
+ **---------------------------------------------------------------------------*/
+void roombaCmdFromSleep(int* roombaState, din7Connector roombaDin, int cmdOpCode){
+	Serial.println("Waking up roomba...");
+	wakeUp(roombaDin);	
+	if(cmdOpCode == CLEAN)		*roombaState = CLEANING;
+	if(cmdOpCode == SEEK_DOCK)	*roombaState = DOCKING;
+	cmdRoomba(cmdOpCode);	
+}
 
 /*-----------------------------------------------------------------------------
  ** Function: 
- ** This command gives you control over Roomba turning on the cliff, wheel-drop and internal charger safety features
+ ** Updates roomba states if currently awake and Cleaning
  **---------------------------------------------------------------------------*/
-void startSafe()
-{  
-  Roomba.write(128);  //Starts the OI, must always send before sending OI cmds
-  Roomba.write(131);  //Safe mode
-  delay(1000);
+void roombaCmdFromClean(int* roombaState, din7Connector roombaDin, int cmdOpCode){
+	Serial.println("Received cmd while cleaning...");
+	if(cmdOpCode == CLEAN)		Serial.println("Already cleaning...");
+	if(cmdOpCode == SEEK_DOCK)	{
+		Serial.println("Stopping cleaning to dock...");
+		cmdRoomba(CLEAN);			// stops cleaning		
+		cmdRoomba(cmdOpCode);
+		*roombaState = DOCKING; 
+	};
 }
-
 
 /*-----------------------------------------------------------------------------
  ** Function: 
- ** Enters this mode after sending Start, Spot, Clean, or Seek Dock command. Can request and receive sensor data but can't change parameters. Goes into power saving mode after 5 mins of inactivity. 
+ ** Updates roomba states if currently Seeking Dock
  **---------------------------------------------------------------------------*/
-void startPassive()
-{  
-  Roomba.write(128);  //Start OI
-  delay(1000);
+void roombaCmdFromSeek(int* roombaState, din7Connector roombaDin, int cmdOpCode){
+	Serial.println("Received cmd while docking...");
+	if(cmdOpCode == SEEK_DOCK)		Serial.println("Already seeking dock...");
+	if(cmdOpCode == CLEAN)			{
+		Serial.println("Stopping docking to clean...");
+		cmdRoomba(CLEAN);			// stops seeking dock		
+		cmdRoomba(cmdOpCode);
+		*roombaState = CLEANING; 
+	};
 }
-
-
+ 
 /*----------------------------------------------------------------------------
  ** Function: 
  ** This command starts the default cleaning mode. Same as pressing Roomba's Clean button
@@ -91,6 +135,32 @@ void seekDock()
 	delay(1000);
 }
 
+/********************************************
+
+Functions below are not used. Maybe for later update?
+
+*********************************************/
+
+/*-----------------------------------------------------------------------------
+ ** Function: 
+ ** Enters this mode after sending Start, Spot, Clean, or Seek Dock command. Can request and receive sensor data but can't change parameters. Goes into power saving mode after 5 mins of inactivity. 
+ **---------------------------------------------------------------------------*/
+void startPassive()
+{  
+  Roomba.write(128);  //Start OI
+  delay(1000);
+}
+
+/*-----------------------------------------------------------------------------
+ ** Function: 
+ ** This command gives you control over Roomba turning on the cliff, wheel-drop and internal charger safety features
+ **---------------------------------------------------------------------------*/
+void startSafe()
+{  
+  Roomba.write(128);  //Starts the OI, must always send before sending OI cmds
+  Roomba.write(131);  //Safe mode
+  delay(1000);
+}
 
 /*-----------------------------------------------------
 Song (pg 19)
@@ -129,9 +199,6 @@ void playSound (int num)
 }
 
 
-
-
-
 /*--------------------------------- LED controls
 - Available in Safe or Full Mode
 - Serial sequence: [139] [LED Bits] [Power Color] [Power Intensity]
@@ -157,12 +224,6 @@ Roomba Open Interface Sensor Packets
 -PacketID: 25: BattCharge;  dataBytes: 2,unsigned. range: 0-65535 mAh
 -PacketID: 25: BattCapacty; dataBytes: 2,unsigned. range: 0-65535 mAh
 
-
-
 ------------------------------------------------------*/
-
-
-
-
 
 #endif

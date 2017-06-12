@@ -13,11 +13,13 @@ RH_ASK driver;
 void setup()
 {
     Serial.begin(9600);	  // Debugging only
-    if (!driver.init())
-         Serial.println("init failed");
+    if (!driver.init()) Serial.println("init failed");
+    Serial.println(" basic transmitter started");
 }
 
 int serialIn = 0;
+String serialInString;
+const char* msg;
 
 
 void loop()
@@ -28,17 +30,20 @@ void loop()
 */
   if (Serial.available()>0){
     serialIn = Serial.read() +86;
+    serialInString = String(serialIn);
   }
 
   if (serialIn!=0){
-   const char *msg = "49";
+   msg = serialInString.c_str();
+   
 
     driver.send((uint8_t *)msg, strlen(msg));
     driver.waitPacketSent();
-    Serial.print("Sent: "); Serial.println(serialIn);
+    Serial.print("serialInString: "); Serial.println(serialInString);
+    Serial.print("msg: "); Serial.println(msg);
     Serial.print("*msg: "); Serial.println(*msg);
     
-    delay(5000);
+    delay(1000);
     serialIn = 0;
   }
 
