@@ -15,8 +15,7 @@
 #define SAFE_MODE 131
 #define FULL_MODE 132
 #define CLEAN     135
-#define SEEK_DOCK 143
- 
+#define SEEK_DOCK 143 
  
 extern SoftwareSerial Roomba;
 
@@ -53,9 +52,8 @@ boolean IsTime(unsigned long *timeMark, unsigned long timeInterval) {
 }
 
 
-
 /*-----------------------------------------------------------------------------
- ** Function: 
+ ** Functions: 
  ** wake up and general cmd functions including wait-time
  **---------------------------------------------------------------------------*/
 void wakeUp (din7Connector miniDin)
@@ -78,8 +76,9 @@ void cmdRoomba(int command){
  ** Updates roomba states if currently in sleep mode
  **---------------------------------------------------------------------------*/
 void roombaCmdFromSleep(int* roombaState, din7Connector roombaDin, int cmdOpCode){
-	Serial.println("Waking up roomba...");
+	Serial.println("Waking up roomba...Starting IO");
 	wakeUp(roombaDin);	
+	cmdRoomba(START_OI);
 	if(cmdOpCode == CLEAN)		*roombaState = CLEANING;
 	if(cmdOpCode == SEEK_DOCK)	*roombaState = DOCKING;
 	cmdRoomba(cmdOpCode);	

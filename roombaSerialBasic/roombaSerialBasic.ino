@@ -29,12 +29,13 @@ roombaObj     artuRoomba=  {.roombaState = ASLEEP, .roombaUpdateFunc = roombaCmd
 
 /*------------------- Initialize variables ----------------------*/
 RH_ASK         driver;        // pins 11, 12, 10 for Rx,Tx,Ptt 
-SoftwareSerial Roomba(roombaDin.pin3Rxd, roombaDin.pin4Txd);   //rxPin, txPin; 6,7
+SoftwareSerial Roomba(roombaDin.pin4Txd, roombaDin.pin3Rxd);   //arduino's rxPin, txPin; 
 
-unsigned long int roombaIOtimeout = 240000;   // 4 min
+unsigned long int roombaIOtimeout = 240000;   // 4 min (actually less? double check)
 unsigned long     roombaTimeMark  = 0;
 int               ledState        = 0;
 int               roombaCmd       = 0;
+String            inSerial        = "";
 
 uint8_t buf[RH_ASK_MAX_MESSAGE_LEN];
 uint8_t buflen = sizeof(buf);
@@ -43,7 +44,7 @@ char rfMsg[sizeof(buf)+1];              // + EOL
 //---------------------Setup()---------------------------------
 void setup() 
 {
-  Roomba.begin(19200);                      // changed to 115200, could be 19200
+  Roomba.begin(19200);                      // changed to 115200, could be 19200/ 57600?
   Serial.begin(19200);                      // for debugging with serial monitor
   pinMode(roombaDin.pin5Brc, OUTPUT);       // Roomba's BRC pin. Used to wake it up
   pinMode(13,OUTPUT);                       // use built in led for feedback
@@ -56,44 +57,54 @@ void setup()
 
 
 //--------------------Main Loop-------------
-void loop() {
-  
-/*------------ Receive commands from RF chip------------*/
-if (driver.recv(buf, &buflen)){
-  for (int i=0; i<buflen; i++){    rfMsg[i]= char(buf[i]);  }
-  rfMsg[5]= 0;                     // add NUL  
-  String tmpString(rfMsg);
-  roombaCmd = tmpString.toInt();
-}
-
-/*------------Do command ------------*/
-if(roombaCmd != 0){
-  Serial.print("--Received: "); Serial.println(roombaCmd);
-  digitalWrite(13, ledState);
-  switch(artuRoomba.roombaState){    
-    case ASLEEP:
-        artuRoomba.roombaUpdateFunc= &roombaCmdFromSleep;
-        break;
-     case CLEANING:
-        artuRoomba.roombaUpdateFunc = &roombaCmdFromClean;
-        break;
-     case DOCKING:
-        artuRoomba.roombaUpdateFunc = &roombaCmdFromSeek;
-        break;
+void loop() {  
+  /*------------ Receive commands from RF chip (or Serial)------------*/
+  if (driver.recv(buf, &buflen)){
+    for (int i=0; i<buflen; i++)  {rfMsg[i]= char(buf[i]);  }
+    rfMsg[5]= 0;                     // add NUL  
+    String tmpString(rfMsg);
+    roombaCmd = tmpString.toInt();
   }
-  artuRoomba.roombaUpdateFunc(&artuRoomba.roombaState, roombaDin, roombaCmd);
-  roombaTimeMark= millis();           // reset sleep timers
+  if (Serial.available() > 0 ){
+    roombaCmd = Serial.read()+86;
+  }
+
+    /* Read Roomba responses ... not used */
+  //  while(Roomba.available()){  
+  //    inSerial += char(Roomba.read());
+  //  }
+  //  if (inSerial != ""){
+  //    Serial.println(inSerial);
+  //    inSerial="";
+  //  }
+
+
+  /*------------Do command ------------*/
+  if(roombaCmd != 0){
+    Serial.print("--Received: "); Serial.println(roombaCmd);
+    digitalWrite(13, ledState);
+    switch(artuRoomba.roombaState){    
+      case ASLEEP:
+          artuRoomba.roombaUpdateFunc= &roombaCmdFromSleep;
+          break;
+       case CLEANING:
+          artuRoomba.roombaUpdateFunc = &roombaCmdFromClean;
+          break;
+       case DOCKING:
+          artuRoomba.roombaUpdateFunc = &roombaCmdFromSeek;
+          break;
+    }
+    artuRoomba.roombaUpdateFunc(&artuRoomba.roombaState, roombaDin, roombaCmd);
+    roombaTimeMark= millis();           // reset sleep timers
+    ledState = !ledState;    
+    roombaCmd = 0; 
+  }// End if(roombaCmd)  
   
-}// End if(roombaCmd)
+  /*-----------Update timers and other states ------------*/
+  if(IsTime(&roombaTimeMark, roombaIOtimeout) && artuRoomba.roombaState != ASLEEP  ) {
+    Serial.println("Roomba went to sleep!");  
+    artuRoomba.roombaState=ASLEEP;
+  }
 
-
-/*-----------Update timers and other states ------------*/
-if(IsTime(&roombaTimeMark, roombaIOtimeout) && artuRoomba.roombaState != ASLEEP  ) {
-  Serial.println("Roomba went to sleep!");  
-  artuRoomba.roombaState=ASLEEP;
-}
-roombaCmd = 0; 
-ledState = !ledState;  
-
-}
+}// End of main loop
 
